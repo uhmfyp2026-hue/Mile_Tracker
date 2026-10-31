@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#13261E">
+<title>Trail Timer</title>
+<style>
+:root{--bg:#EEF2EF;--ink:#13261E;--mut:#5B6B63;--line:#CBD6CF;--card:#fff;--go:#1B7A4B;--pause:#A8660B;--stop:#B3321B;--pine:#13261E}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);-webkit-tap-highlight-color:transparent}
+main{max-width:480px;margin:0 auto;padding:20px 18px 32px;display:none}
+main.on{display:block}
+h1{font-size:30px;font-weight:800;letter-spacing:-.02em}
+h2{font-size:18px;font-weight:700;margin:26px 0 10px}
+p.sub{color:var(--mut);margin:6px 0 24px;line-height:1.45}
+button{font:inherit;border:0;border-radius:14px;padding:16px 18px;font-weight:700;font-size:18px;color:#fff;background:var(--pine);width:100%;cursor:pointer}
+button:active{transform:scale(.98)}
+button:focus-visible{outline:3px solid #6FB38F;outline-offset:2px}
+button.go{background:var(--go)}button.pause{background:var(--pause)}button.stop{background:var(--stop)}
+button.ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+button.small{font-size:15px;padding:11px 14px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.big{font-size:76px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.unit{font-size:24px;font-weight:600;color:var(--mut);margin-left:6px}
+.timer{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:10px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--mut)}
+.gps{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:7px 12px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:#999}
+.dot.good{background:#1B9A5B}.dot.fair{background:#D9A21B}.dot.weak{background:#D9531B}
+.state{font-weight:700;color:var(--mut);margin:14px 0 4px}
+.log{list-style:none;padding:0;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.log li{display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.log li:last-child{border:0}.log li span:first-child{font-weight:700}.log em{color:var(--mut);font-size:13px}
+.item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:16px;margin-bottom:8px}
+.item small{display:block;color:var(--mut);font-weight:500;margin-top:3px}
+.banner{background:#FFF4DC;border:1px solid #E5C77A;border-radius:12px;padding:14px;margin-bottom:18px}
+.banner p{margin-bottom:10px;line-height:1.4}
+.msg{color:var(--stop);font-size:14px;margin-top:10px;min-height:18px}
+.ctl{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 18px);padding:18px 0 4px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<main id="home">
+  <h1>Trail Timer</h1>
+  <p class="sub">Track distance and time with GPS. All times are shown in Pakistan time.</p>
+  <div id="recover" class="banner" hidden>
+    <p>You have an unfinished session.</p>
+    <div class="row"><button class="go small" id="recCont">Continue session</button><button class="ghost small" id="recDisc">Discard</button></div>
+  </div>
+  <button class="go" id="newBtn">Start new session</button>
+  <h2>Past sessions</h2>
+  <div id="hist"></div>
+</main>
+
+<main id="sess">
+  <div class="row" style="align-items:center;justify-content:space-between;flex:none">
+    <span class="gps"><i class="dot" id="gdot"></i><span id="gtxt">Searching for GPS…</span></span>
+  </div>
+  <div class="state" id="stateTxt">Ready</div>
+  <div class="big"><span id="dist">0.00</span><span class="unit">km</span></div>
+  <div class="timer" id="clock">00:00:00</div>
+  <div class="stats">
+    <div class="stat"><b id="spd">0.0</b><span>Speed (km/h)</span></div>
+    <div class="stat"><b id="pace">--:--</b><span>Avg pace (min/km)</span></div>
+  </div>
+  <div class="msg" id="gmsg"></div>
+  <h2>Session log</h2>
+  <ul class="log" id="slog"></ul>
+  <div class="ctl" id="ctl"></div>
+</main>
+
+<main id="sum">
+  <h1>Session summary</h1>
+  <p class="sub" id="sumDate"></p>
+  <div class="big"><span id="sDist">0.00</span><span class="unit">km</span></div>
+  <div class="stats">
+    <div class="stat"><b id="sActive">0</b><span>Active time</span></div>
+    <div class="stat"><b id="sTotal">0</b><span>Total elapsed</span></div>
+    <div class="stat"><b id="sSpd">0</b><span>Avg speed (km/h)</span></div>
+    <div class="stat"><b id="sPace">--</b><span>Avg pace (min/km)</span></div>
+  </div>
+  <h2>Times (Pakistan time)</h2>
+  <ul class="log" id="sLog"></ul>
+  <div style="height:18px"></div>
+  <div class="row"><button class="small" id="expBtn">Export CSV</button><button class="small" id="shBtn">Share</button></div>
+  <div style="height:10px"></div>
+  <button class="ghost" id="homeBtn">Back to home</button>
+  <div style="height:10px"></div>
+  <button class="ghost small" id="delBtn" hidden>Delete this session</button>
+</main>
+
+<div id="modal" hidden style="position:fixed;inset:0;background:rgba(19,38,30,.55);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50">
+  <div style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%">
+    <p id="mMsg" style="font-size:17px;line-height:1.45;margin-bottom:18px"></p>
+    <div class="row"><button class="ghost small" id="mNo">Cancel</button><button class="stop small" id="mYes">OK</button></div>
+  </div>
+</div>
+<style>#modal[hidden]{display:none!important}</style>
+
+<script>
+(()=>{
+const TZ='Asia/Karachi', MAX_ACC=20, MAX_SPEED=50;
+const $=id=>document.getElementById(id);
+const tFmt=new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+const dFmt=new Intl.DateTimeFormat('en-GB',{timeZone:TZ,day:'2-digit',month:'short',year:'numeric'});
+const fT=ms=>tFmt.format(ms), fD=ms=>dFmt.format(ms);
+const pad=n=>String(n).padStart(2,'0');
+const dur=ms=>{const s=Math.floor(ms/1000);return pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60)};
+const paceFmt=sp=>{if(sp<0.3)return '--:--';const m=60/sp;return Math.floor(m)+':'+pad(Math.round((m%1)*60)%60)};
+function hav(a,b){const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lon-a.lon)*r;
+ const x=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+
+let S=null,last=null,recent=[],gps={acc:null,t:0},watchId=null,wake=null,timer=null,viewing=null;
+
+function show(id){['home','sess','sum'].forEach(i=>$(i).classList.toggle('on',i===id));window.scrollTo(0,0)}
+const active=()=>S.acc+(S.status==='running'?Date.now()-S.segStart:0);
+const total=()=>(S.endedAt||Date.now())-S.startedAt;
+const persist=()=>{if(S&&S.status!=='stopped')sv('tt_active',{S,saved:Date.now()})};
+
+/* ---------- Home ---------- */
+function home(){
+  show('home');
+  const a=ld('tt_active',null);
+  $('recover').hidden=!(a&&a.S&&a.S.status!=='stopped');
+  const h=ld('tt_hist',[]);
+  $('hist').innerHTML=h.length?'':'<p class="sub">No sessions yet. Your finished sessions will appear here.</p>';
+  h.forEach((s,i)=>{const b=document.createElement('button');b.className='item';
+    b.innerHTML='<span>'+fD(s.startedAt)+', '+fT(s.startedAt)+'<small>'+dur(s.acc)+' active</small></span><span>'+(s.dist/1000).toFixed(2)+' km</span>';
+    b.onclick=()=>summary(s,i);$('hist').appendChild(b)});
+}
+
+/* ---------- Session ---------- */
+function openSession(){
+  show('sess');startWatch();lockScreen();
+  clearInterval(timer);timer=setInterval(tick,250);
+  renderCtl();renderLog($('slog'),S);tick();
+}
+function newSession(){
+  S={id:Date.now(),status:'idle',dist:0,acc:0,segStart:null,events:[],startedAt:null,endedAt:null};
+  last=null;recent=[];openSession();
+}
+function event(type,note){S.events.push({type,t:Date.now(),note});renderLog($('slog'),S)}
+function start(){S.status='running';S.startedAt=Date.now();S.segStart=S.startedAt;last=null;recent=[];event('Start');afterChange()}
+function pauseS(){S.acc+=Date.now()-S.segStart;S.segStart=null;S.status='paused';event('Pause');afterChange()}
+function resume(){S.status='running';S.segStart=Date.now();last=null;recent=[];event('Resume');afterChange()}
+function ask(msg,yes,fn){
+  $('mMsg').textContent=msg;$('mYes').textContent=yes;$('modal').hidden=false;
+  $('mYes').onclick=()=>{$('modal').hidden=true;fn()};
+  $('mNo').onclick=()=>{$('modal').hidden=true};
+}
+function stop(){ask('Stop this session? You can’t resume it afterwards.','Stop session',doStop)}
+function doStop(){
+  if(S.status==='running'){S.acc+=Date.now()-S.segStart;S.segStart=null}
+  S.status='stopped';event('Stop');S.endedAt=Date.now();
+  const h=ld('tt_hist',[]);h.unshift(S);sv('tt_hist',h.slice(0,200));
+  localStorage.removeItem('tt_active');
+  stopWatch();unlock();clearInterval(timer);summary(S,0,true);
+}
+function afterChange(){persist();renderCtl();tick()}
+function renderCtl(){
+  const c=$('ctl');
+  const b=(cls,txt,fn)=>{const e=document.createElement('button');e.className=cls;e.textContent=txt;e.onclick=fn;return e};
+  c.innerHTML='';
+  if(S.status==='idle'){c.append(b('go','Start',start),Object.assign(b('ghost small','Back',()=>{stopWatch();unlock();clearInterval(timer);home()}),{style:'margin-top:10px'}))}
+  else{const r=document.createElement('div');r.className='row';
+    r.append(S.status==='running'?b('pause','Pause',pauseS):b('go','Resume',resume),b('stop','Stop',stop));c.append(r)}
+  $('stateTxt').textContent={idle:'Ready to start',running:'Running',paused:'Paused'}[S.status];
+}
+function renderLog(el,s){
+  el.innerHTML=s.events.length?'':'<li><em>Press Start to begin.</em></li>';
+  s.events.forEach(e=>{const li=document.createElement('li');
+    li.innerHTML='<span>'+e.type+(e.note?' <em>('+e.note+')</em>':'')+'</span><span>'+fT(e.t)+'</span>';el.appendChild(li)});
+}
+function tick(){
+  if(!S||S.status==='stopped')return;
+  const a=active();
+  $('clock').textContent=dur(a);
+  $('dist').textContent=(S.dist/1000).toFixed(2);
+  const now=Date.now();recent=recent.filter(r=>r.t>now-8000);
+  const sp=S.status==='running'?recent.reduce((s,r)=>s+r.d,0)/8:0;
+  $('spd').textContent=(sp*3.6).toFixed(1);
+  $('pace').textContent=a>5000?paceFmt(S.dist/(a/1000)*3.6):'--:--';
+  gpsUi();
+  if(now%2000<250)persist();
+}
+
+/* ---------- GPS ---------- */
+function gpsUi(){
+  const age=Date.now()-gps.t,d=$('gdot');let cls='',txt='Searching for GPS…',msg='';
+  if(gps.acc!==null&&age<10000){
+    if(gps.acc<=10){cls='good';txt='GPS good (±'+Math.round(gps.acc)+' m)'}
+    else if(gps.acc<=MAX_ACC){cls='fair';txt='GPS fair (±'+Math.round(gps.acc)+' m)'}
+    else{cls='weak';txt='GPS weak (±'+Math.round(gps.acc)+' m)';msg='Weak signal: readings are ignored until accuracy improves.'}
+  }else if(gps.acc!==null){cls='weak';txt='No recent GPS fix';msg='No GPS update for 10 seconds. Check that location is on and keep the page open.'}
+  d.className='dot '+cls;$('gtxt').textContent=txt;
+  if(!gps.err)$('gmsg').textContent=msg;
+}
+function startWatch(){
+  if(watchId!==null)return;
+  if(!navigator.geolocation){$('gmsg').textContent='This browser does not support GPS.';return}
+  watchId=navigator.geolocation.watchPosition(onPos,e=>{gps.err=true;
+    $('gmsg').textContent=e.code===1?'Location permission denied. Allow location for this site in your browser settings.':'GPS error: '+e.message},
+    {enableHighAccuracy:true,maximumAge:0,timeout:20000});
+}
+function stopWatch(){if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}}
+function onPos(p){
+  const c=p.coords;gps={acc:c.accuracy,t:Date.now()};
+  if(!S||S.status!=='running'||c.accuracy>MAX_ACC)return;
+  const pt={lat:c.latitude,lon:c.longitude,t:p.timestamp||Date.now()};
+  if(last){
+    const d=hav(last,pt),dt=(pt.t-last.t)/1000;
+    if(d<Math.max(3,c.accuracy*0.5))return;      // jitter while standing still
+    if(dt>0&&d/dt>MAX_SPEED)return;              // impossible jump
+    S.dist+=d;recent.push({t:Date.now(),d});
+  }
+  last=pt;persist();
+}
+async function lockScreen(){try{if('wakeLock' in navigator&&!wake)wake=await navigator.wakeLock.request('screen');if(wake)wake.addEventListener('release',()=>wake=null)}catch(e){}}
+function unlock(){try{wake&&wake.release()}catch(e){}wake=null}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S&&S.status!=='stopped'&&$('sess').classList.contains('on'))lockScreen()});
+
+/* ---------- Summary / export ---------- */
+function summary(s,idx,justStopped){
+  viewing={s,idx};show('sum');
+  const a=s.acc,t=s.endedAt-s.startedAt,sp=a>0?s.dist/(a/1000):0;
+  $('sumDate').textContent=fD(s.startedAt);
+  $('sDist').textContent=(s.dist/1000).toFixed(2);
+  $('sActive').textContent=dur(a);$('sTotal').textContent=dur(t);
+  $('sSpd').textContent=(sp*3.6).toFixed(1);$('sPace').textContent=paceFmt(sp*3.6);
+  renderLog($('sLog'),s);$('delBtn').hidden=!!justStopped;
+}
+function csv(s){
+  const a=s.acc,rows=[['Event','Date','Time (PKT)']];
+  s.events.forEach(e=>rows.push([e.type,fD(e.t),fT(e.t)]));
+  rows.push([],['Distance (km)',(s.dist/1000).toFixed(3)],['Active time',dur(a)],['Total elapsed',dur(s.endedAt-s.startedAt)]);
+  return rows.map(r=>r.join(',')).join('\n');
+}
+$('expBtn').onclick=()=>{const s=viewing.s,b=new Blob([csv(s)],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download='session-'+new Date(s.startedAt).toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)};
+$('shBtn').onclick=async()=>{const s=viewing.s,txt='Session '+fD(s.startedAt)+'\nDistance: '+(s.dist/1000).toFixed(2)+' km\nActive time: '+dur(s.acc)+'\n'+s.events.map(e=>e.type+': '+fT(e.t)).join('\n');
+  try{if(navigator.share)await navigator.share({title:'Session summary',text:txt});else{await navigator.clipboard.writeText(txt);$('shBtn').textContent='Copied'}}catch(e){}};
+$('delBtn').onclick=()=>ask('Delete this session?','Delete',()=>{const h=ld('tt_hist',[]);h.splice(viewing.idx,1);sv('tt_hist',h);home()});
+$('homeBtn').onclick=home;
+
+/* ---------- Recovery ---------- */
+$('newBtn').onclick=()=>{const go=()=>{localStorage.removeItem('tt_active');newSession()};
+  if(ld('tt_active',null))ask('Starting a new session discards the unfinished one. Continue?','Start new',go);else go()};
+$('recCont').onclick=()=>{const a=ld('tt_active',null);if(!a)return home();S=a.S;
+  if(S.status==='running'){S.acc+=a.saved-S.segStart;S.segStart=null;S.status='paused';S.events.push({type:'Pause',t:a.saved,note:'page was closed'})}
+  last=null;recent=[];persist();openSession()};
+$('recDisc').onclick=()=>ask('Discard the unfinished session?','Discard',()=>{localStorage.removeItem('tt_active');home()});
+
+window.addEventListener('pagehide',persist);
+home();
+})();
+</script>
+</body>
+</html>
